@@ -9,10 +9,14 @@ export default function Clients() {
   const [showAdd, setShowAdd] = useState(false);
   const [form, setForm] = useState({ name: "", mobile: "", address: "", national_id: "" });
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
   function load(query = "") {
-    api.get("/clients", { params: query ? { q: query } : {} }).then((r) => setClients(r.data));
+    setLoading(true);
+    api.get("/clients", { params: query ? { q: query } : {} })
+      .then((r) => setClients(r.data))
+      .finally(() => setLoading(false));
   }
 
   useEffect(() => { load(); }, []);
@@ -20,6 +24,11 @@ export default function Clients() {
   function handleSearch(e) {
     e.preventDefault();
     load(q);
+  }
+
+  function handleClearSearch() {
+    setQ("");
+    setTimeout(() => load(""), 0);
   }
 
   async function handleAdd(e) {
@@ -31,81 +40,251 @@ export default function Clients() {
       setForm({ name: "", mobile: "", address: "", national_id: "" });
       load(q);
     } catch (err) {
-      setError(err.response?.data?.error || "Failed to add client");
+      setError(err.response?.data?.error || err.response?.data?.message || "Failed to add client");
     }
   }
 
+  // Get client initials for avatar
+  const getInitials = (name) => {
+    if (!name) return "?";
+    const parts = name.trim().split(" ");
+    if (parts.length === 1) return parts[0].charAt(0).toUpperCase();
+    return (parts[0].charAt(0) + parts[parts.length - 1].charAt(0)).toUpperCase();
+  };
+
   return (
-    <div>
-      <div className="page-header">
+    <div className="clients-page">
+      {/* Page Header */}
+      <div className="page-header premium">
         <div>
-          <h1 className="page-title">Clients</h1>
-          <p className="page-subtitle">Everyone you represent, in one registry.</p>
+          <div className="page-breadcrumb">
+            <span className="breadcrumb-item">👥 Chamber</span>
+            <span className="breadcrumb-separator">/</span>
+            <span className="breadcrumb-item active">Client Registry</span>
+          </div>
+          <h1 className="page-title">Client Registry</h1>
+          <p className="page-subtitle">Manage all clients, contacts, and represented parties.</p>
         </div>
-        <button className="btn btn-accent" onClick={() => setShowAdd(true)}>+ Add client</button>
+        <button className="btn btn-primary premium" onClick={() => setShowAdd(true)}>
+          <span className="btn-icon">+</span> Add Client
+        </button>
       </div>
 
-      <form className="toolbar" onSubmit={handleSearch}>
-        <input
-          className="search-input"
-          placeholder="Search by name or mobile…"
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-        />
-        <button className="btn btn-sm" type="submit">Search</button>
-      </form>
-
-      <div className="panel">
-        <div className="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Name</th>
-                <th>Mobile</th>
-                <th>Address</th>
-                <th>National ID</th>
-              </tr>
-            </thead>
-            <tbody>
-              {clients.map((c) => (
-                <tr key={c.id} onClick={() => navigate(`/clients/${c.id}`)}>
-                  <td><strong>{c.name}</strong></td>
-                  <td className="mono">{c.mobile}</td>
-                  <td>{c.address || "—"}</td>
-                  <td className="mono">{c.national_id || "—"}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          {clients.length === 0 && <div className="empty-state">No clients yet. Add your first client to get started.</div>}
+      {/* Stats Summary */}
+      <div className="clients-stats-grid">
+        <div className="clients-stat-card total">
+          <div className="stat-emoji">👥</div>
+          <div>
+            <div className="stat-number">{clients.length}</div>
+            <div className="stat-label">Total Clients</div>
+          </div>
+        </div>
+        <div className="clients-stat-card active">
+          <div className="stat-emoji">⚡</div>
+          <div>
+            <div className="stat-number">
+              {clients.filter(c => c.cases?.some(cs => cs.status === "Running")).length}
+            </div>
+            <div className="stat-label">With Active Cases</div>
+          </div>
+        </div>
+        <div className="clients-stat-card new">
+          <div className="stat-emoji">🆕</div>
+          <div>
+            <div className="stat-number">
+              {clients.filter(c => {
+                if (!c.created_at) return false;
+                const days = (Date.now() - new Date(c.created_at)) / (1000 * 60 * 60 * 24);
+                return days <= 30;
+              }).length}
+            </div>
+            <div className="stat-label">New (30 days)</div>
+          </div>
+        </div>
+        <div className="clients-stat-card total-cases">
+          <div className="stat-emoji">📂</div>
+          <div>
+            <div className="stat-number">
+              {clients.reduce((acc, c) => acc + (c.cases?.length || 0), 0)}
+            </div>
+            <div className="stat-label">Total Cases</div>
+          </div>
         </div>
       </div>
 
+      {/* Search Toolbar */}
+      <div className="search-toolbar premium">
+        <form className="search-form" onSubmit={handleSearch}>
+          <div className="search-input-wrapper">
+            <span className="search-icon">🔍</span>
+            <input
+              className="search-input premium"
+              placeholder="Search clients by name, mobile, or ID..."
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+            />
+            {q && (
+              <button type="button" className="clear-search" onClick={() => setQ("")}>
+                ✕
+              </button>
+            )}
+          </div>
+          <div className="filter-group">
+            <button className="btn btn-search" type="submit">Search</button>
+            {q && (
+              <button type="button" className="btn btn-clear" onClick={handleClearSearch}>
+                Clear
+              </button>
+            )}
+          </div>
+        </form>
+      </div>
+
+      {/* Clients Grid */}
+      <div className="clients-grid-wrapper">
+        <div className="clients-grid-header">
+          <span className="results-count">
+            {clients.length} {clients.length === 1 ? "client" : "clients"} found
+          </span>
+        </div>
+
+        {loading ? (
+          <div className="loading-shimmer">
+            <div className="shimmer-row" style={{ height: 80, marginBottom: 12 }} />
+            <div className="shimmer-row" style={{ height: 80, marginBottom: 12 }} />
+            <div className="shimmer-row" style={{ height: 80, marginBottom: 12 }} />
+            <div className="shimmer-row" style={{ height: 80 }} />
+          </div>
+        ) : clients.length === 0 ? (
+          <div className="empty-state premium">
+            <span className="empty-icon">👤</span>
+            <h3>No clients registered</h3>
+            <p>Start by adding your first client to the registry.</p>
+            <button 
+              className="btn btn-accent btn-sm" 
+              onClick={() => setShowAdd(true)}
+            >
+              + Add Client
+            </button>
+          </div>
+        ) : (
+          <div className="clients-grid">
+            {clients.map((client) => (
+              <div
+                key={client.id}
+                className="client-card"
+                onClick={() => navigate(`/clients/${client.id}`)}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") navigate(`/clients/${client.id}`);
+                }}
+              >
+                <div className="client-card-header">
+                  <div className="client-avatar">
+                    {getInitials(client.name)}
+                  </div>
+                  <div className="client-info">
+                    <div className="client-name">{client.name}</div>
+                    <div className="client-mobile">📱 {client.mobile || "No mobile"}</div>
+                  </div>
+                  <div className="client-card-arrow">→</div>
+                </div>
+                <div className="client-card-body">
+                  {client.address && (
+                    <div className="client-address">📍 {client.address}</div>
+                  )}
+                  {client.national_id && (
+                    <div className="client-national-id">🆔 {client.national_id}</div>
+                  )}
+                </div>
+                <div className="client-card-footer">
+                  <div className="client-case-count">
+                    <span className="count-number">{client.cases?.length || 0}</span>
+                    <span className="count-label">Cases</span>
+                  </div>
+                  <div className="client-case-status">
+                    {client.cases?.some(c => c.status === "Running") && (
+                      <span className="status-badge running">Running</span>
+                    )}
+                    {client.cases?.some(c => c.status === "Pending") && (
+                      <span className="status-badge pending">Pending</span>
+                    )}
+                    {!client.cases?.length && (
+                      <span className="status-badge no-cases">No Cases</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Add Client Modal - Redesigned */}
       {showAdd && (
-        <Modal title="Add client" onClose={() => setShowAdd(false)}>
-          {error && <div className="error-msg">{error}</div>}
-          <form onSubmit={handleAdd}>
-            <div className="field">
-              <label>Full name *</label>
-              <input required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
-            </div>
-            <div className="field">
-              <label>Mobile number *</label>
-              <input required value={form.mobile} onChange={(e) => setForm({ ...form, mobile: e.target.value })} />
-            </div>
-            <div className="field">
-              <label>Address</label>
-              <input value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} />
-            </div>
-            <div className="field">
-              <label>National ID (optional)</label>
-              <input value={form.national_id} onChange={(e) => setForm({ ...form, national_id: e.target.value })} />
-            </div>
-            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
-              <button type="button" className="btn" style={{ background: "#e5e3d9", color: "var(--ink)" }} onClick={() => setShowAdd(false)}>Cancel</button>
-              <button type="submit" className="btn btn-accent">Save client</button>
-            </div>
-          </form>
+        <Modal title="👤 Add New Client" onClose={() => setShowAdd(false)}>
+          <div className="modal-premium">
+            {error && <div className="error-msg premium">{error}</div>}
+            <form onSubmit={handleAdd} className="modal-form">
+              <div className="form-grid premium">
+                <div className="field premium full-width">
+                  <label>
+                    <span className="field-icon">📝</span>
+                    Full Name <span className="required">*</span>
+                  </label>
+                  <input 
+                    required 
+                    placeholder="e.g., John Doe" 
+                    value={form.name} 
+                    onChange={(e) => setForm({ ...form, name: e.target.value })} 
+                  />
+                </div>
+                <div className="field premium">
+                  <label>
+                    <span className="field-icon">📱</span>
+                    Mobile Number <span className="required">*</span>
+                  </label>
+                  <input 
+                    required 
+                    placeholder="e.g., 017XXXXXXXX" 
+                    value={form.mobile} 
+                    onChange={(e) => setForm({ ...form, mobile: e.target.value })} 
+                  />
+                </div>
+                <div className="field premium">
+                  <label>
+                    <span className="field-icon">🆔</span>
+                    National ID
+                  </label>
+                  <input 
+                    placeholder="e.g., 1234567890" 
+                    value={form.national_id} 
+                    onChange={(e) => setForm({ ...form, national_id: e.target.value })} 
+                  />
+                </div>
+                <div className="field premium full-width">
+                  <label>
+                    <span className="field-icon">📍</span>
+                    Address
+                  </label>
+                  <input 
+                    placeholder="e.g., 123 Main Street, City" 
+                    value={form.address} 
+                    onChange={(e) => setForm({ ...form, address: e.target.value })} 
+                  />
+                </div>
+              </div>
+              <div className="modal-actions">
+                <button type="button" className="btn btn-secondary" onClick={() => setShowAdd(false)}>
+                  Cancel
+                </button>
+                <button type="submit" className="btn btn-primary premium">
+                  <span className="btn-icon">+</span> Save Client
+                </button>
+              </div>
+            </form>
+          </div>
         </Modal>
       )}
     </div>

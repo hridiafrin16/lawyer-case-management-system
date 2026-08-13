@@ -24,6 +24,13 @@ function Protected({ user, children }) {
   return children;
 }
 
+function formatRole(role = "") {
+  const normalizedRole = role.trim().toLowerCase();
+  if (normalizedRole === "admin") return "Administrator";
+  if (normalizedRole === "advocate") return "Senior Advocate";
+  return normalizedRole ? normalizedRole.charAt(0).toUpperCase() + normalizedRole.slice(1) : "";
+}
+
 const navItems = [
   { to: "/", label: "Dashboard", icon: "◧" },
   { to: "/cases", label: "Cases", icon: "⚖" },
@@ -37,6 +44,8 @@ const navItems = [
 export default function App() {
   const { user, setUser } = useAuth();
   const navigate = useNavigate();
+  const displayName = user.name?.trim() || "User";
+  const displayRole = formatRole(user.role || "");
 
   function handleLogout() {
     localStorage.removeItem("token");
@@ -79,10 +88,10 @@ export default function App() {
         </nav>
         <div className="sidebar-footer">
           <div className="user-chip">
-            <div className="user-avatar">{user.name?.[0]?.toUpperCase() || "A"}</div>
+            <div className="user-avatar">{displayName[0]?.toUpperCase() || "U"}</div>
             <div>
-              <div className="user-name">{user.name}</div>
-              <div className="user-role">{user.role}</div>
+              <div className="user-name">{displayName}</div>
+              <div className="user-role">{displayRole}</div>
             </div>
           </div>
           <button className="btn-ghost" onClick={handleLogout}>Log out</button>

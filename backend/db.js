@@ -23,7 +23,7 @@ CREATE TABLE IF NOT EXISTS clients (
   name TEXT NOT NULL,
   mobile TEXT NOT NULL,
   address TEXT,
-  national_id TEXT,
+  national_id TEXT UNIQUE,
   created_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -92,6 +92,10 @@ CREATE TABLE IF NOT EXISTS audit_log (
   entity_id INTEGER,
   created_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_clients_national_id
+ON clients(national_id)
+WHERE national_id IS NOT NULL;
 `);
 
 // Seed a default advocate user if none exists

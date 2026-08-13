@@ -94,11 +94,17 @@ const quickActions = [
   },
 ];
 
+function getStoredUser() {
+  const raw = localStorage.getItem("user");
+  return raw ? JSON.parse(raw) : null;
+}
+
 export default function Dashboard() {
   const [summary, setSummary] = useState(null);
   const [today, setToday] = useState([]);
   const [tomorrow, setTomorrow] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [user] = useState(getStoredUser);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -135,6 +141,7 @@ export default function Dashboard() {
   };
 
   const hearingTime = (hearing) => hearing.hearing_time || hearing.time || "Time not set";
+  const userName = user?.name?.trim();
 
   const getStatusBadge = (purpose) => {
     if (!purpose) return "badge-pending";
@@ -165,7 +172,7 @@ export default function Dashboard() {
             <span className="date-badge">📌 {formattedDate}</span>
           </div>
           <h1 className="dashboard-title">
-            Welcome Back, <span className="title-highlight">Advocate</span>
+            Welcome Back{userName && <>, <span className="title-highlight">{userName}</span></>}
           </h1>
           <p className="dashboard-subtitle">
             Today's docket: <strong>{today.length}</strong> hearings scheduled.

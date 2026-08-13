@@ -35,11 +35,20 @@ router.post("/", (req, res) => {
   if (!name || !mobile) {
     return res.status(400).json({ error: "Name and mobile number are required" });
   }
+  const nationalId = national_id || null;
+  if (nationalId) {
+    const existingNationalId = db
+      .prepare("SELECT id FROM clients WHERE national_id = ?")
+      .get(nationalId);
+    if (existingNationalId) {
+      return res.status(400).json({ error: "National ID already exists." });
+    }
+  }
   const result = db
     .prepare(
       "INSERT INTO clients (name, mobile, address, national_id) VALUES (?, ?, ?, ?)"
     )
-    .run(name, mobile, address || null, national_id || null);
+    .run(name, mobile, address || null, nationalId);
   res.status(201).json(db.prepare("SELECT * FROM clients WHERE id = ?").get(result.lastInsertRowid));
 });
 
