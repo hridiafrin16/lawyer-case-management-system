@@ -44,8 +44,8 @@ const navItems = [
 export default function App() {
   const { user, setUser } = useAuth();
   const navigate = useNavigate();
-  const displayName = user.name?.trim() || "User";
-  const displayRole = formatRole(user.role || "");
+  const displayName = user ? user.name?.trim() || "User" : "User";
+  const displayRole = user ? formatRole(user.role || "") : "";
 
   function handleLogout() {
     localStorage.removeItem("token");

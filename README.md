@@ -131,6 +131,6 @@ This project is for educational and portfolio purposes.
 
 ---
 
-## 👩‍💻 Author
+
 
 **Sadia Afrin Hridi**
