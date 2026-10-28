@@ -5,6 +5,7 @@ import Modal from "../components/Modal.jsx";
 import StatusBadge from "../components/StatusBadge.jsx";
 
 const TABS = ["Overview", "Hearings", "Documents", "Payments", "Notes"];
+const CASE_OUTCOMES = ["Not decided", "Won", "Lost", "Settled", "Withdrawn"];
 
 export default function CaseDetail() {
   const { id } = useParams();
@@ -77,11 +78,44 @@ export default function CaseDetail() {
               </div>
               <div className="field">
                 <label>Status</label>
-                <select value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}>
+                <select
+                  value={form.status}
+                  onChange={(e) => setForm({
+                    ...form,
+                    status: e.target.value,
+                    outcome: e.target.value === "Closed" ? (form.outcome || "Not decided") : "Not decided",
+                    closed_date: e.target.value === "Closed" ? (form.closed_date || "") : "",
+                  })}
+                >
                   <option value="Running">Running</option>
                   <option value="Pending">Pending</option>
                   <option value="Closed">Closed</option>
                 </select>
+              </div>
+              <div className="field">
+                <label>Case outcome</label>
+                <select
+                  value={form.outcome || "Not decided"}
+                  disabled={form.status !== "Closed"}
+                  onChange={(e) => setForm({ ...form, outcome: e.target.value })}
+                >
+                  {CASE_OUTCOMES.map((outcome) => (
+                    <option key={outcome} value={outcome}>{outcome}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="field">
+                <label>Filed date</label>
+                <input type="date" value={form.filed_date || ""} onChange={(e) => setForm({ ...form, filed_date: e.target.value })} />
+              </div>
+              <div className="field">
+                <label>Closed date</label>
+                <input
+                  type="date"
+                  value={form.closed_date || ""}
+                  disabled={form.status !== "Closed"}
+                  onChange={(e) => setForm({ ...form, closed_date: e.target.value })}
+                />
               </div>
               <div className="field">
                 <label>Court name</label>
@@ -117,6 +151,8 @@ function OverviewTab({ data }) {
     ["Judge", data.judge_name],
     ["Opposite party", data.opposite_party],
     ["Filed date", data.filed_date],
+    ["Case outcome", data.outcome],
+    ["Closed date", data.closed_date],
   ];
   return (
     <div className="panel">
@@ -136,15 +172,44 @@ function OverviewTab({ data }) {
   );
 }
 
+function formatHearingDate(dateValue) {
+  if (!dateValue) return "Date not set";
+  const date = new Date(`${dateValue}T00:00:00`);
+  if (Number.isNaN(date.getTime())) return dateValue;
+  return new Intl.DateTimeFormat("en-GB", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  }).format(date);
+}
+
+function formatHearingTime(time) {
+  if (!time) return "Time not set";
+  const [hoursValue, minutesValue] = time.split(":");
+  const date = new Date();
+  date.setHours(Number(hoursValue), Number(minutesValue || 0), 0, 0);
+  if (Number.isNaN(date.getTime())) return time;
+  return new Intl.DateTimeFormat("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(date);
+}
+
 function HearingsTab({ caseId, hearings, reload }) {
   const [show, setShow] = useState(false);
-  const [form, setForm] = useState({ hearing_date: "", purpose: "", outcome: "", next_hearing_date: "" });
+  const [form, setForm] = useState({
+    hearing_date: "",
+    hearing_time: "",
+    purpose: "",
+    outcome: "",
+    next_hearing_date: "",
+  });
 
   async function handleAdd(e) {
     e.preventDefault();
     await api.post("/hearings", { case_id: caseId, ...form });
     setShow(false);
-    setForm({ hearing_date: "", purpose: "", outcome: "", next_hearing_date: "" });
+    setForm({ hearing_date: "", hearing_time: "", purpose: "", outcome: "", next_hearing_date: "" });
     reload();
   }
 
@@ -169,7 +234,9 @@ function HearingsTab({ caseId, hearings, reload }) {
       {hearings.map((h) => (
         <div className="list-item" key={h.id}>
           <div>
-            <strong className="mono">{h.hearing_date}</strong> — {h.purpose || "General hearing"}
+            <strong>{formatHearingDate(h.hearing_date)}</strong>
+            <span className="hearing-time-chip">{formatHearingTime(h.hearing_time)}</span>
+            <span> — {h.purpose || "General hearing"}</span>
             {h.outcome && <div className="page-subtitle" style={{ margin: "2px 0 0" }}>Outcome: {h.outcome}</div>}
             {h.next_hearing_date && <div className="page-subtitle" style={{ margin: "2px 0 0" }}>Next: {h.next_hearing_date}</div>}
           </div>
@@ -180,9 +247,15 @@ function HearingsTab({ caseId, hearings, reload }) {
       {show && (
         <Modal title="Add hearing" onClose={() => setShow(false)}>
           <form onSubmit={handleAdd}>
-            <div className="field">
-              <label>Hearing date *</label>
-              <input type="date" required value={form.hearing_date} onChange={(e) => setForm({ ...form, hearing_date: e.target.value })} />
+            <div className="form-grid hearing-date-time-grid">
+              <div className="field">
+                <label>Hearing Date *</label>
+                <input type="date" required value={form.hearing_date} onChange={(e) => setForm({ ...form, hearing_date: e.target.value })} />
+              </div>
+              <div className="field">
+                <label>Hearing Time</label>
+                <input type="time" value={form.hearing_time} onChange={(e) => setForm({ ...form, hearing_time: e.target.value })} />
+              </div>
             </div>
             <div className="field">
               <label>Purpose</label>
@@ -273,13 +346,13 @@ function DocumentsTab({ caseId, documents, reload }) {
 
 function PaymentsTab({ caseId, clientId, payments, reload }) {
   const [show, setShow] = useState(false);
-  const [form, setForm] = useState({ amount_due: "", amount_paid: "", payment_date: "", note: "" });
+  const [form, setForm] = useState({ amount_due: "", amount_paid: "", payment_date: "", due_date: "", note: "" });
 
   async function handleAdd(e) {
     e.preventDefault();
     await api.post("/payments", { client_id: clientId, case_id: caseId, ...form });
     setShow(false);
-    setForm({ amount_due: "", amount_paid: "", payment_date: "", note: "" });
+    setForm({ amount_due: "", amount_paid: "", payment_date: "", due_date: "", note: "" });
     reload();
   }
 
@@ -291,12 +364,16 @@ function PaymentsTab({ caseId, clientId, payments, reload }) {
       </div>
       {payments.length === 0 && <div className="empty-state">No payment records yet.</div>}
       {payments.map((p) => {
-        const due = p.amount_due - p.amount_paid;
+        const due = Number(p.amount_due || 0) - Number(p.amount_paid || 0);
+        const today = new Date();
+        const todayString = [today.getFullYear(), String(today.getMonth() + 1).padStart(2, "0"), String(today.getDate()).padStart(2, "0")].join("-");
+        const status = due <= 0 ? "PAID" : p.due_date && p.due_date < todayString ? "OVERDUE" : Number(p.amount_paid || 0) > 0 ? "PARTIAL" : "DUE";
         return (
           <div className="list-item" key={p.id}>
             <div>
               <strong className="mono">৳{p.amount_paid} / ৳{p.amount_due}</strong>
-              {due > 0 && <span className="badge badge-due" style={{ marginLeft: 8 }}>Due ৳{due}</span>}
+              <span className={`badge ${status === "PAID" ? "badge-running" : status === "PARTIAL" ? "badge-pending" : "badge-due"}`} style={{ marginLeft: 8 }}>{status} · ৳{Math.max(0, due)} remaining</span>
+              {p.due_date && <div className="page-subtitle" style={{ margin: "2px 0 0" }}>Due date: {p.due_date}</div>}
               {p.note && <div className="page-subtitle" style={{ margin: "2px 0 0" }}>{p.note}</div>}
             </div>
             <span className="page-subtitle">{p.payment_date || "—"}</span>
@@ -319,6 +396,10 @@ function PaymentsTab({ caseId, clientId, payments, reload }) {
               <div className="field">
                 <label>Payment date</label>
                 <input type="date" value={form.payment_date} onChange={(e) => setForm({ ...form, payment_date: e.target.value })} />
+              </div>
+              <div className="field">
+                <label>Due date (optional)</label>
+                <input type="date" value={form.due_date} onChange={(e) => setForm({ ...form, due_date: e.target.value })} />
               </div>
             </div>
             <div className="field">

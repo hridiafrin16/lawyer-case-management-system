@@ -5,6 +5,29 @@ import { requireAuth } from "../middleware/auth.js";
 const router = express.Router();
 router.use(requireAuth);
 
+const VALID_STATUSES = ["Running", "Pending", "Closed"];
+const VALID_OUTCOMES = ["Not decided", "Won", "Lost", "Settled", "Withdrawn"];
+
+function normalizeCasePayload(body, existing = {}) {
+  const status = body.status ?? existing.status ?? "Running";
+  const requestedOutcome = body.outcome ?? existing.outcome ?? "Not decided";
+  const outcome = status === "Closed" ? requestedOutcome : "Not decided";
+  const closedDate = status === "Closed" ? (body.closed_date ?? existing.closed_date ?? null) : null;
+
+  if (!VALID_STATUSES.includes(status)) {
+    return { error: "Invalid case status" };
+  }
+  if (!VALID_OUTCOMES.includes(outcome)) {
+    return { error: "Invalid case outcome" };
+  }
+
+  return {
+    status,
+    outcome,
+    closed_date: closedDate || null,
+  };
+}
+
 // List / search / filter cases
 router.get("/", (req, res) => {
   const { q, status, case_type, court_name, client_id } = req.query;
@@ -47,7 +70,7 @@ router.get("/:id", (req, res) => {
     .get(req.params.id);
   if (!c) return res.status(404).json({ error: "Case not found" });
   const hearings = db
-    .prepare("SELECT * FROM hearings WHERE case_id = ? ORDER BY hearing_date DESC")
+    .prepare("SELECT * FROM hearings WHERE case_id = ? ORDER BY hearing_date DESC, hearing_time DESC")
     .all(req.params.id);
   const documents = db
     .prepare("SELECT * FROM documents WHERE case_id = ? ORDER BY uploaded_at DESC")
@@ -70,7 +93,9 @@ router.post("/", (req, res) => {
     judge_name,
     opposite_party,
     status,
+    outcome,
     filed_date,
+    closed_date,
     description,
   } = req.body;
   if (!case_number || !client_id || !case_type) {
@@ -78,11 +103,14 @@ router.post("/", (req, res) => {
       .status(400)
       .json({ error: "case_number, client_id and case_type are required" });
   }
+  const normalized = normalizeCasePayload({ status, outcome, closed_date });
+  if (normalized.error) return res.status(400).json({ error: normalized.error });
+
   try {
     const result = db
       .prepare(
-        `INSERT INTO cases (case_number, client_id, case_type, court_name, judge_name, opposite_party, status, filed_date, description)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        `INSERT INTO cases (case_number, client_id, case_type, court_name, judge_name, opposite_party, status, outcome, filed_date, closed_date, description)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
         case_number,
@@ -91,8 +119,10 @@ router.post("/", (req, res) => {
         court_name || null,
         judge_name || null,
         opposite_party || null,
-        status || "Running",
+        normalized.status,
+        normalized.outcome,
         filed_date || null,
+        normalized.closed_date,
         description || null
       );
     res
@@ -117,13 +147,21 @@ router.put("/:id", (req, res) => {
     "judge_name",
     "opposite_party",
     "status",
+    "outcome",
     "filed_date",
+    "closed_date",
     "description",
   ];
   const updated = {};
   fields.forEach((f) => (updated[f] = req.body[f] ?? existing[f]));
+  const normalized = normalizeCasePayload(updated, existing);
+  if (normalized.error) return res.status(400).json({ error: normalized.error });
+  updated.status = normalized.status;
+  updated.outcome = normalized.outcome;
+  updated.closed_date = normalized.closed_date;
+
   db.prepare(
-    `UPDATE cases SET case_number=?, client_id=?, case_type=?, court_name=?, judge_name=?, opposite_party=?, status=?, filed_date=?, description=? WHERE id=?`
+    `UPDATE cases SET case_number=?, client_id=?, case_type=?, court_name=?, judge_name=?, opposite_party=?, status=?, outcome=?, filed_date=?, closed_date=?, description=? WHERE id=?`
   ).run(
     updated.case_number,
     updated.client_id,
@@ -132,7 +170,9 @@ router.put("/:id", (req, res) => {
     updated.judge_name,
     updated.opposite_party,
     updated.status,
+    updated.outcome,
     updated.filed_date,
+    updated.closed_date,
     updated.description,
     req.params.id
   );

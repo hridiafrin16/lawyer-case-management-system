@@ -103,6 +103,8 @@ export default function Dashboard() {
   const [summary, setSummary] = useState(null);
   const [today, setToday] = useState([]);
   const [tomorrow, setTomorrow] = useState([]);
+  const [upcoming, setUpcoming] = useState([]);
+  const [paymentSummary, setPaymentSummary] = useState(null);
   const [loading, setLoading] = useState(true);
   const [user] = useState(getStoredUser);
   const navigate = useNavigate();
@@ -111,14 +113,16 @@ export default function Dashboard() {
     const fetchData = async () => {
       setLoading(true);
       try {
-        const [summaryRes, todayRes, tomorrowRes] = await Promise.all([
+        const [summaryRes, remindersRes, paymentRes] = await Promise.all([
           api.get("/reports/summary"),
-          api.get("/hearings/today"),
-          api.get("/hearings/tomorrow"),
+          api.get("/hearings/reminders"),
+          api.get("/payments/summary"),
         ]);
         setSummary(summaryRes.data);
-        setToday(todayRes.data);
-        setTomorrow(tomorrowRes.data);
+        setToday(remindersRes.data.today);
+        setTomorrow(remindersRes.data.tomorrow);
+        setUpcoming(remindersRes.data.upcoming);
+        setPaymentSummary(paymentRes.data);
       } catch (error) {
         console.error("Error fetching dashboard data:", error);
       } finally {
@@ -140,7 +144,18 @@ export default function Dashboard() {
     return stat.isCurrency ? `BDT ${Number(value).toLocaleString()}` : value.toLocaleString();
   };
 
-  const hearingTime = (hearing) => hearing.hearing_time || hearing.time || "Time not set";
+  const hearingTime = (hearing) => {
+    const time = hearing.hearing_time || hearing.time;
+    if (!time) return "Time not set";
+    const [hoursValue, minutesValue] = time.split(":");
+    const date = new Date();
+    date.setHours(Number(hoursValue), Number(minutesValue || 0), 0, 0);
+    if (Number.isNaN(date.getTime())) return time;
+    return new Intl.DateTimeFormat("en-US", {
+      hour: "numeric",
+      minute: "2-digit",
+    }).format(date);
+  };
   const userName = user?.name?.trim();
 
   const getStatusBadge = (purpose) => {
@@ -327,6 +342,59 @@ export default function Dashboard() {
             </div>
           )}
         </aside>
+      </div>
+
+      {/* Quick Stats Footer */}
+      <div className="dashboard-two-column automation-panels">
+        <section className="dashboard-panel">
+          <div className="dashboard-section-head">
+            <div>
+              <h2>Hearing Reminders</h2>
+              <p>Upcoming appearances over the next seven days.</p>
+            </div>
+            <button className="btn btn-sm btn-accent" onClick={() => navigate("/hearings")}>View Hearings</button>
+          </div>
+          <div className="automation-counts">
+            <span>Today <strong>{today.length}</strong></span>
+            <span>Tomorrow <strong>{tomorrow.length}</strong></span>
+            <span>Upcoming <strong>{upcoming.length}</strong></span>
+            {summary?.overdueHearings > 0 && <span className="automation-warning">Overdue <strong>{summary.overdueHearings}</strong></span>}
+          </div>
+          {upcoming.length === 0 ? <div className="dashboard-empty small"><p>No upcoming hearings.</p></div> : (
+            <div className="automation-list">
+              {upcoming.map((hearing) => (
+                <div className="automation-row" key={hearing.id} onClick={() => navigate(`/cases/${hearing.case_id}`)} role="button" tabIndex={0}>
+                  <div><strong className="mono">{hearing.case_number}</strong><span>{hearing.client_name}</span></div>
+                  <div>{hearing.hearing_date}{hearing.hearing_time ? ` · ${hearingTime(hearing)}` : ""}</div>
+                  <div>{hearing.purpose || "General hearing"}</div>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+
+        <section className="dashboard-panel">
+          <div className="dashboard-section-head">
+            <div>
+              <h2>Payment Tracking</h2>
+              <p>Balances calculated from recorded fees and payments.</p>
+            </div>
+            <button className="btn btn-sm btn-accent" onClick={() => navigate("/payments")}>View Payments</button>
+          </div>
+          <div className="payment-summary-total">Total Outstanding <strong>BDT {Number(paymentSummary?.totalOutstanding || 0).toLocaleString()}</strong></div>
+          <div className="automation-counts">
+            <span>Due <strong>{paymentSummary?.dueCount || 0}</strong></span>
+            <span>Partial <strong>{paymentSummary?.partialCount || 0}</strong></span>
+            <span>Overdue <strong>{paymentSummary?.overdueCount || 0}</strong></span>
+          </div>
+          {(paymentSummary?.outstandingPayments || []).slice(0, 5).map((payment) => (
+            <div className="automation-payment" key={payment.id}>
+              <div><strong>{payment.client_name}</strong><span className="mono">{payment.case_number || "No case"}</span></div>
+              <div><strong>BDT {Number(payment.remaining).toLocaleString()}</strong><span className={`badge ${payment.status === "OVERDUE" || payment.status === "DUE" ? "badge-due" : "badge-pending"}`}>{payment.status}</span>{payment.due_date && <span className="page-subtitle">Due {payment.due_date}</span>}</div>
+            </div>
+          ))}
+          {!paymentSummary?.outstandingPayments?.length && <div className="dashboard-empty small"><p>No outstanding payments.</p></div>}
+        </section>
       </div>
 
       {/* Quick Stats Footer */}

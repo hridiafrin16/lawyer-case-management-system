@@ -31,25 +31,35 @@ router.get("/:id", (req, res) => {
 });
 
 router.post("/", (req, res) => {
-  const { name, mobile, address, national_id } = req.body;
+  const name = typeof req.body.name === "string" ? req.body.name.trim() : "";
+  const mobile = typeof req.body.mobile === "string" ? req.body.mobile.trim() : "";
+  const address = typeof req.body.address === "string" ? req.body.address.trim() : "";
+  const nationalIdValue = typeof req.body.national_id === "string" ? req.body.national_id.trim() : "";
   if (!name || !mobile) {
     return res.status(400).json({ error: "Name and mobile number are required" });
   }
-  const nationalId = national_id || null;
+  const nationalId = nationalIdValue || null;
   if (nationalId) {
     const existingNationalId = db
       .prepare("SELECT id FROM clients WHERE national_id = ?")
       .get(nationalId);
     if (existingNationalId) {
-      return res.status(400).json({ error: "National ID already exists." });
+      return res.status(409).json({ error: "A client with this National ID already exists." });
     }
   }
-  const result = db
-    .prepare(
-      "INSERT INTO clients (name, mobile, address, national_id) VALUES (?, ?, ?, ?)"
-    )
-    .run(name, mobile, address || null, nationalId);
-  res.status(201).json(db.prepare("SELECT * FROM clients WHERE id = ?").get(result.lastInsertRowid));
+  try {
+    const result = db
+      .prepare(
+        "INSERT INTO clients (name, mobile, address, national_id) VALUES (?, ?, ?, ?)"
+      )
+      .run(name, mobile, address || null, nationalId);
+    res.status(201).json(db.prepare("SELECT * FROM clients WHERE id = ?").get(result.lastInsertRowid));
+  } catch (error) {
+    if (error.code === "SQLITE_CONSTRAINT_UNIQUE") {
+      return res.status(409).json({ error: "A client with this National ID already exists." });
+    }
+    throw error;
+  }
 });
 
 router.put("/:id", (req, res) => {

@@ -9,6 +9,7 @@ export default function Clients() {
   const [showAdd, setShowAdd] = useState(false);
   const [form, setForm] = useState({ name: "", mobile: "", address: "", national_id: "" });
   const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
@@ -34,13 +35,17 @@ export default function Clients() {
   async function handleAdd(e) {
     e.preventDefault();
     setError("");
+    setSaving(true);
     try {
       await api.post("/clients", form);
       setShowAdd(false);
       setForm({ name: "", mobile: "", address: "", national_id: "" });
-      load(q);
+      setQ("");
+      load("");
     } catch (err) {
       setError(err.response?.data?.error || err.response?.data?.message || "Failed to add client");
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -279,8 +284,8 @@ export default function Clients() {
                 <button type="button" className="btn btn-secondary" onClick={() => setShowAdd(false)}>
                   Cancel
                 </button>
-                <button type="submit" className="btn btn-primary premium">
-                  <span className="btn-icon">+</span> Save Client
+                <button type="submit" className="btn btn-primary premium" disabled={saving}>
+                  <span className="btn-icon">{saving ? "…" : "+"}</span> {saving ? "Saving…" : "Save Client"}
                 </button>
               </div>
             </form>

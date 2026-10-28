@@ -1,6 +1,7 @@
 import express from "express";
 import db from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
+import { getHearingReminders, getPaymentSummary } from "../services/automation.js";
 
 const router = express.Router();
 router.use(requireAuth);
@@ -17,20 +18,54 @@ router.get("/summary", (req, res) => {
     .prepare("SELECT COUNT(*) AS c FROM cases WHERE status = 'Closed'")
     .get().c;
   const totalClients = db.prepare("SELECT COUNT(*) AS c FROM clients").get().c;
-  const dueTotals = db
+  const totalDocuments = db.prepare("SELECT COUNT(*) AS c FROM documents").get().c;
+  const outcomeTotals = db
     .prepare(
-      "SELECT COALESCE(SUM(amount_due),0) AS due, COALESCE(SUM(amount_paid),0) AS paid FROM payments"
+      `SELECT
+       SUM(CASE WHEN outcome = 'Won' THEN 1 ELSE 0 END) AS won,
+       SUM(CASE WHEN outcome = 'Lost' THEN 1 ELSE 0 END) AS lost
+       FROM cases
+       WHERE status = 'Closed'`
     )
     .get();
+  const wonCases = Number(outcomeTotals.won || 0);
+  const lostCases = Number(outcomeTotals.lost || 0);
+  const decidedCases = wonCases + lostCases;
+  const successRate = decidedCases === 0 ? 0 : Math.round((wonCases / decidedCases) * 100);
+  const durationTotals = db
+    .prepare(
+      `SELECT AVG(julianday(closed_date) - julianday(filed_date)) AS avgDuration
+       FROM cases
+       WHERE status = 'Closed'
+         AND filed_date IS NOT NULL
+         AND filed_date != ''
+         AND closed_date IS NOT NULL
+         AND closed_date != ''`
+    )
+    .get();
+  const avgDuration = Math.round(Number(durationTotals.avgDuration || 0));
+  const paymentSummary = getPaymentSummary();
+  const hearingReminders = getHearingReminders();
   res.json({
     totalCases: total,
     runningCases: running,
     pendingCases: pending,
     closedCases: closed,
     totalClients,
-    totalDue: dueTotals.due,
-    totalPaid: dueTotals.paid,
-    totalOutstanding: dueTotals.due - dueTotals.paid,
+    totalDocuments,
+    successRate,
+    avgDuration,
+    totalDue: paymentSummary.totalDue,
+    totalPaid: paymentSummary.totalPaid,
+    totalOutstanding: paymentSummary.totalOutstanding,
+    hearingToday: hearingReminders.counts.today,
+    hearingTomorrow: hearingReminders.counts.tomorrow,
+    upcomingHearings: hearingReminders.counts.upcoming,
+    overdueHearings: hearingReminders.counts.overdue,
+    paidPayments: paymentSummary.paidCount,
+    partialPayments: paymentSummary.partialCount,
+    duePayments: paymentSummary.dueCount,
+    overduePayments: paymentSummary.overdueCount,
   });
 });
 
@@ -45,16 +80,7 @@ router.get("/monthly-cases", (req, res) => {
 });
 
 router.get("/due-payments", (req, res) => {
-  const rows = db
-    .prepare(
-      `SELECT payments.*, clients.name AS client_name, cases.case_number
-       FROM payments
-       JOIN clients ON payments.client_id = clients.id
-       LEFT JOIN cases ON payments.case_id = cases.id
-       WHERE amount_paid < amount_due
-       ORDER BY (amount_due - amount_paid) DESC`
-    )
-    .all();
+  const rows = getPaymentSummary().outstandingPayments;
   res.json(rows);
 });
 

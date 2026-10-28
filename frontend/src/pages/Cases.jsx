@@ -5,6 +5,7 @@ import Modal from "../components/Modal.jsx";
 import StatusBadge from "../components/StatusBadge.jsx";
 
 const CASE_TYPES = ["Civil", "Criminal", "Family", "Property", "Corporate", "Writ", "Other"];
+const CASE_OUTCOMES = ["Not decided", "Won", "Lost", "Settled", "Withdrawn"];
 
 // Quick filter options
 const FILTER_OPTIONS = [
@@ -33,7 +34,9 @@ export default function Cases() {
     judge_name: "",
     opposite_party: "",
     status: "Running",
+    outcome: "Not decided",
     filed_date: "",
+    closed_date: "",
     description: "",
   };
   const [form, setForm] = useState(emptyForm);
@@ -315,7 +318,12 @@ export default function Cases() {
                   </label>
                   <select 
                     value={form.status} 
-                    onChange={(e) => setForm({ ...form, status: e.target.value })}
+                    onChange={(e) => setForm({
+                      ...form,
+                      status: e.target.value,
+                      outcome: e.target.value === "Closed" ? form.outcome : "Not decided",
+                      closed_date: e.target.value === "Closed" ? form.closed_date : "",
+                    })}
                   >
                     <option value="Running">⚡ Running</option>
                     <option value="Pending">⏳ Pending</option>
@@ -364,6 +372,33 @@ export default function Cases() {
                     type="date" 
                     value={form.filed_date} 
                     onChange={(e) => setForm({ ...form, filed_date: e.target.value })} 
+                  />
+                </div>
+                <div className="field premium">
+                  <label>
+                    <span className="field-icon">🏁</span>
+                    Case Outcome
+                  </label>
+                  <select
+                    value={form.outcome}
+                    disabled={form.status !== "Closed"}
+                    onChange={(e) => setForm({ ...form, outcome: e.target.value })}
+                  >
+                    {CASE_OUTCOMES.map((outcome) => (
+                      <option key={outcome} value={outcome}>{outcome}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="field premium">
+                  <label>
+                    <span className="field-icon">📅</span>
+                    Closed Date
+                  </label>
+                  <input
+                    type="date"
+                    value={form.closed_date}
+                    disabled={form.status !== "Closed"}
+                    onChange={(e) => setForm({ ...form, closed_date: e.target.value })}
                   />
                 </div>
               </div>

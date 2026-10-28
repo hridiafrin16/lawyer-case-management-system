@@ -36,7 +36,9 @@ CREATE TABLE IF NOT EXISTS cases (
   judge_name TEXT,
   opposite_party TEXT,
   status TEXT NOT NULL DEFAULT 'Running',
+  outcome TEXT NOT NULL DEFAULT 'Not decided',
   filed_date TEXT,
+  closed_date TEXT,
   description TEXT,
   created_at TEXT DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE CASCADE
@@ -46,6 +48,7 @@ CREATE TABLE IF NOT EXISTS hearings (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   case_id INTEGER NOT NULL,
   hearing_date TEXT NOT NULL,
+  hearing_time TEXT,
   purpose TEXT,
   outcome TEXT,
   next_hearing_date TEXT,
@@ -97,6 +100,24 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_clients_national_id
 ON clients(national_id)
 WHERE national_id IS NOT NULL;
 `);
+
+const hearingColumns = db.prepare("PRAGMA table_info(hearings)").all();
+if (!hearingColumns.some((column) => column.name === "hearing_time")) {
+  db.prepare("ALTER TABLE hearings ADD COLUMN hearing_time TEXT").run();
+}
+
+const caseColumns = db.prepare("PRAGMA table_info(cases)").all();
+if (!caseColumns.some((column) => column.name === "outcome")) {
+  db.prepare("ALTER TABLE cases ADD COLUMN outcome TEXT NOT NULL DEFAULT 'Not decided'").run();
+}
+if (!caseColumns.some((column) => column.name === "closed_date")) {
+  db.prepare("ALTER TABLE cases ADD COLUMN closed_date TEXT").run();
+}
+
+const paymentColumns = db.prepare("PRAGMA table_info(payments)").all();
+if (!paymentColumns.some((column) => column.name === "due_date")) {
+  db.prepare("ALTER TABLE payments ADD COLUMN due_date TEXT").run();
+}
 
 // Seed a default advocate user if none exists
 const userCount = db.prepare("SELECT COUNT(*) AS c FROM users").get().c;
