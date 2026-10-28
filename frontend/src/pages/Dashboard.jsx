@@ -105,6 +105,9 @@ export default function Dashboard() {
   const [tomorrow, setTomorrow] = useState([]);
   const [upcoming, setUpcoming] = useState([]);
   const [paymentSummary, setPaymentSummary] = useState(null);
+  const [attentionCases, setAttentionCases] = useState([]);
+  const [attentionLoading, setAttentionLoading] = useState(true);
+  const [attentionError, setAttentionError] = useState("");
   const [loading, setLoading] = useState(true);
   const [user] = useState(getStoredUser);
   const navigate = useNavigate();
@@ -130,6 +133,18 @@ export default function Dashboard() {
       }
     };
     fetchData();
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    api.get("/cases/attention")
+      .then((response) => { if (active) setAttentionCases(response.data); })
+      .catch((error) => {
+        console.error("Error fetching case attention:", error);
+        if (active) setAttentionError("Could not load cases needing attention.");
+      })
+      .finally(() => { if (active) setAttentionLoading(false); });
+    return () => { active = false; };
   }, []);
 
   const formattedDate = new Intl.DateTimeFormat("en-US", {
@@ -343,6 +358,46 @@ export default function Dashboard() {
           )}
         </aside>
       </div>
+
+      <section className="dashboard-panel dashboard-attention-panel">
+        <div className="dashboard-section-head">
+          <div>
+            <h2>Cases Needing Attention</h2>
+            <p>Highest workflow attention scores, calculated from current case records.</p>
+          </div>
+          <button className="btn btn-sm btn-accent" onClick={() => navigate("/cases")}>View Cases</button>
+        </div>
+        {attentionLoading ? (
+          <div className="dashboard-empty small"><p>Calculating case attention…</p></div>
+        ) : attentionError ? (
+          <div className="dashboard-empty small"><p>{attentionError}</p></div>
+        ) : attentionCases.length === 0 ? (
+          <div className="dashboard-empty small"><p>No cases currently need attention.</p></div>
+        ) : (
+          <div className="dashboard-attention-list">
+            {attentionCases.map((item) => (
+              <div
+                className="dashboard-attention-row"
+                key={item.case_id}
+                onClick={() => navigate(`/cases/${item.case_id}`)}
+                onKeyDown={(event) => { if (event.key === "Enter") navigate(`/cases/${item.case_id}`); }}
+                role="button"
+                tabIndex={0}
+              >
+                <div className="dashboard-attention-case">
+                  <strong className="mono">{item.case_number}</strong>
+                  <span>{item.client_name}</span>
+                </div>
+                <div className="dashboard-attention-score">
+                  <strong>{item.score}<small>/100</small></strong>
+                  <span className={`attention-level-pill attention-level-${item.level.toLowerCase()}`}>{item.level}</span>
+                </div>
+                <p>{item.main_reason}</p>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
 
       {/* Quick Stats Footer */}
       <div className="dashboard-two-column automation-panels">
