@@ -7,7 +7,7 @@ import db from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const uploadDir = path.join(__dirname, "..", "uploads");
+const uploadDir = path.resolve(process.env.DOCUMENTS_DIR || path.join(__dirname, "..", "uploads"));
 if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
 
 const storage = multer.diskStorage({
