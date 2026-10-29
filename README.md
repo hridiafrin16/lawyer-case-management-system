@@ -158,6 +158,8 @@ Set these environment variables in the backend service:
 
 Attach a Render Persistent Disk to the backend service, mount it at `/var/data`, and use the paths above. Render Persistent Disks require a paid service plan. SQLite and uploaded files are otherwise on the service filesystem and will not survive replacement/redeploys reliably. You can also set the backend health check path to `/api/health`. The existing local defaults remain `backend/case_system.db` and `backend/uploads`.
 
+For a Render Free test without a Persistent Disk, leave `DATABASE_PATH` and `DOCUMENTS_DIR` unset. If either variable points to an unavailable or unwritable directory, the backend falls back to `backend/case_system.db` and `backend/uploads`. Free service storage is temporary, so test data and uploaded files may be lost when the service restarts or redeploys. Set the variables back to paths on the mounted disk if you later move to a plan with persistent storage.
+
 A newly mounted disk starts with a separate, empty database; it does not copy the local `case_system.db`. On an empty database, the existing seed logic creates `admin@example.com` with password `admin123`. Change that password through Settings before sharing the demo URL, and use only demo or sanitized case data in the Render database.
 
 ### Frontend Render Static Site

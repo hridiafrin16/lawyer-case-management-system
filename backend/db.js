@@ -1,13 +1,13 @@
 import Database from "better-sqlite3";
 import bcrypt from "bcryptjs";
 import "dotenv/config";
-import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
+import { selectDatabasePath } from "./storagePaths.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const databasePath = path.resolve(process.env.DATABASE_PATH || path.join(__dirname, "case_system.db"));
-fs.mkdirSync(path.dirname(databasePath), { recursive: true });
+const localDatabasePath = path.join(__dirname, "case_system.db");
+const databasePath = selectDatabasePath(process.env.DATABASE_PATH, localDatabasePath);
 const db = new Database(databasePath);
 
 db.pragma("foreign_keys = ON");

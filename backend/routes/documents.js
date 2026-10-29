@@ -5,9 +5,11 @@ import fs from "fs";
 import { fileURLToPath } from "url";
 import db from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
+import { selectDocumentsDirectory } from "../storagePaths.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const uploadDir = path.resolve(process.env.DOCUMENTS_DIR || path.join(__dirname, "..", "uploads"));
+const localUploadsDir = path.join(__dirname, "..", "uploads");
+const uploadDir = selectDocumentsDirectory(process.env.DOCUMENTS_DIR, localUploadsDir);
 if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
 
 const storage = multer.diskStorage({
